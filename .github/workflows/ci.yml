@@ -47,6 +47,8 @@ jobs:
 
       - name: Build Docker image
         uses: docker/build-push-action@v5
+        env:
+          BUILDKIT_PROGRESS: plain
         with:
           context: .
           file: Dockerfile.dev
@@ -58,6 +60,9 @@ jobs:
           build-args: |
             USER_ID=1000
             GROUP_ID=1000
+
+      - name: Mark image as built
+        run: mkdir -p .state && touch .state/docker-build-base
 
       - name: Run lint
         run: make lint
@@ -102,8 +107,23 @@ jobs:
             }
           skip-extraction: ${{ steps.cache.outputs.cache-hit }}
 
+      - name: Build PostGIS Docker image
+        uses: docker/build-push-action@v5
+        env:
+          BUILDKIT_PROGRESS: plain
+        with:
+          context: compose
+          file: compose/Dockerfile.postgis
+          push: false
+          load: true
+          tags: postgis:latest
+          cache-from: type=gha,scope=postgis
+          cache-to: type=gha,mode=max,scope=postgis
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
+        env:
+          BUILDKIT_PROGRESS: plain
         with:
           context: .
           file: Dockerfile.dev
@@ -115,6 +135,9 @@ jobs:
           build-args: |
             USER_ID=1000
             GROUP_ID=1000
+
+      - name: Mark image as built
+        run: mkdir -p .state && touch .state/docker-build-base
 
       - name: Run tests
         run: make test
