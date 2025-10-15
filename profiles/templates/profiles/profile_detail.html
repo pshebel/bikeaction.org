@@ -188,8 +188,160 @@
     </ul>
   </div>
   {% endif %}
+
+  {% for election in open_nomination_elections %}
+    <div style="padding: 1.5rem; background-color: #e8f4f8; border-left: 4px solid #007bff; margin: 1rem 0;">
+      <h3 style="margin: 0 0 0.5rem 0;"><i class="fa-solid fa-vote-yea"></i> Nominations Open: {{ election.title }}</h3>
+      <p style="margin: 0.5rem 0;">Nominations are currently open! You were a member in good standing as of the eligibility deadline ({{ election.membership_eligibility_deadline|date:"F d, Y" }}), so you can nominate qualified members for this election.</p>
+      <p style="margin: 0.5rem 0;"><strong>Nominations close:</strong> {{ election.nominations_close|date:"F d, Y g:i A" }}</p>
+      <p style="margin: 1rem 0 0 0;">
+        <a href="{% url 'nomination_form' election.slug %}" class="submit-button">Submit a Nomination</a>
+      </p>
+    </div>
+  {% endfor %}
 </div>
 
+{% if nominations_received_pending %}
+<hr>
+<div class="form-header">
+  <h2>Pending Nominations</h2>
+  <p><strong>You have been nominated! Please review and respond:</strong></p>
+
+  <div class="table-container">
+    <table>
+        <tr>
+          <th>Election</th>
+          <th>Nominated By</th>
+          <th>Discord</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+        {% for nomination in nominations_received_pending %}
+        <tr>
+          <td>{{ nomination.nominee.election.title }}</td>
+          <td>{{ nomination.nominator.first_name }} {{ nomination.nominator.last_name|slice:":1" }}.</td>
+          <td>{% if nomination.nominator.socialaccount_set.all %}@{{ nomination.nominator.socialaccount_set.first.extra_data.username }}{% endif %}</td>
+          <td>{{ nomination.created_at|date:"M d, Y" }}</td>
+          <td>
+            {% if not nomination.nominee.election.is_nominations_closed %}
+            <a href="{% url 'nomination_respond' nomination.nominee.election.slug nomination.id %}" class="homepage-button">Respond</a>
+            {% else %}
+            <span style="color: #999;">Nominations Closed</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if nomination_drafts %}
+<hr>
+<div class="form-header">
+  <h2>Nomination Drafts</h2>
+  <div class="table-container">
+    <table>
+        <tr>
+          <th>Election</th>
+          <th>Nominee</th>
+          <th>Discord</th>
+          <th>Last Updated</th>
+          <th>Actions</th>
+        </tr>
+        {% for nomination in nomination_drafts %}
+        <tr>
+          <td>{{ nomination.nominee.election.title }}</td>
+          <td>{{ nomination.nominee.get_display_name }}</td>
+          <td>{% if nomination.nominee.user.socialaccount_set.all %}@{{ nomination.nominee.user.socialaccount_set.first.extra_data.username }}{% endif %}</td>
+          <td>{{ nomination.updated_at|date:"M d, Y" }}</td>
+          <td><a href="{% url 'nomination_edit' nomination.nominee.election.slug nomination.id %}">Edit/Submit</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if nominations_given %}
+<hr>
+<div class="form-header">
+  <h2>Your Nominations</h2>
+  <div class="table-container">
+    <table>
+        <tr>
+          <th>Election</th>
+          <th>Nominee</th>
+          <th>Discord</th>
+          <th>Status</th>
+          <th>Submitted</th>
+          <th>Actions</th>
+        </tr>
+        {% for nomination in nominations_given %}
+        <tr>
+          <td>{{ nomination.nominee.election.title }}</td>
+          <td>{{ nomination.nominee.get_display_name }}</td>
+          <td>{% if nomination.nominee.user.socialaccount_set.all %}@{{ nomination.nominee.user.socialaccount_set.first.extra_data.username }}{% endif %}</td>
+          <td>{{ nomination.get_acceptance_status_display }}</td>
+          <td>{{ nomination.created_at|date:"M d, Y" }}</td>
+          <td>
+            <a href="{% url 'nomination_view' nomination.nominee.election.slug nomination.id %}">View</a>
+            {% if nomination.nominator == nomination.nominee.user and not nomination.nominee.election.is_nominations_closed and nomination.acceptance_status != 'declined' %}
+            | <a href="{% url 'nomination_edit' nomination.nominee.election.slug nomination.id %}">Edit</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if nominations_received_responded %}
+<hr>
+<div class="form-header">
+  <h2>Nominations Received</h2>
+
+  {% for nominee in responded_nominees %}
+  {% if not nominee.election.is_nominations_closed %}
+  <p style="margin: 10px 0;">
+    <a href="{% url 'nominee_profile_edit' nominee.election.slug nominee.id %}" class="homepage-button" style="font-size: 1.5em;">Manage Nominee Profile</a>
+  </p>
+  {% endif %}
+  {% endfor %}
+
+  <div class="table-container">
+    <table>
+        <tr>
+          <th>Election</th>
+          <th>Nominated By</th>
+          <th>Discord</th>
+          <th>Your Response</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+        {% for nomination in nominations_received_responded %}
+        <tr>
+          <td>{{ nomination.nominee.election.title }}</td>
+          <td>{{ nomination.nominator.first_name }} {{ nomination.nominator.last_name|slice:":1" }}.</td>
+          <td>{% if nomination.nominator.socialaccount_set.all %}@{{ nomination.nominator.socialaccount_set.first.extra_data.username }}{% endif %}</td>
+          <td><strong>{{ nomination.get_acceptance_status_display }}</strong></td>
+          <td>{{ nomination.acceptance_date|date:"M d, Y" }}</td>
+          <td>
+            {% if not nomination.nominee.election.is_nominations_closed %}
+              {% if nomination.nominator == nomination.nominee.user %}
+              <a href="{% url 'nomination_respond' nomination.nominee.election.slug nomination.id %}">Withdraw Nomination</a>
+              {% else %}
+              <a href="{% url 'nomination_respond' nomination.nominee.election.slug nomination.id %}">Change Response</a>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
 
 {% if request.user.profile.project_application_drafts %}
 <hr>

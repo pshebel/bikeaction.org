@@ -29,7 +29,7 @@ class ProfileDetailView(LoginRequiredMixin, DetailView):
 
         from django.utils import timezone
 
-        from elections.models import Election
+        from elections.models import Election, Nomination, Nominee
 
         context = super().get_context_data(**kwargs)
         context["today"] = timezone.now().date()
@@ -46,6 +46,76 @@ class ProfileDetailView(LoginRequiredMixin, DetailView):
             context["discord_activity_start_date"] = (
                 upcoming_election.membership_eligibility_deadline - datetime.timedelta(days=30)
             )
+
+        # Get nomination data (with social accounts prefetched for Discord handles)
+        context["nominations_given"] = (
+            Nomination.objects.filter(nominator=self.request.user, draft=False)
+            .select_related("nominee__election", "nominee__user")
+            .prefetch_related("nominee__user__socialaccount_set")
+        )
+
+        nominations_received_pending = (
+            Nomination.objects.filter(
+                nominee__user=self.request.user,
+                draft=False,
+                acceptance_status=Nomination.AcceptanceStatus.PENDING,
+            )
+            .select_related("nominee__election", "nominator")
+            .prefetch_related("nominator__socialaccount_set")
+        )
+        context["nominations_received_pending"] = nominations_received_pending
+
+        # Get unique nominees with pending nominations for profile edit link
+        context["pending_nominees"] = (
+            Nominee.objects.filter(
+                user=self.request.user, nominations__in=nominations_received_pending
+            )
+            .distinct()
+            .select_related("election")
+        )
+
+        nominations_received_responded = (
+            Nomination.objects.filter(
+                nominee__user=self.request.user,
+                draft=False,
+            )
+            .exclude(acceptance_status=Nomination.AcceptanceStatus.PENDING)
+            .select_related("nominee__election", "nominator")
+            .prefetch_related("nominator__socialaccount_set")
+        )
+        context["nominations_received_responded"] = nominations_received_responded
+
+        # Get unique nominees with responded nominations for profile edit link
+        context["responded_nominees"] = (
+            Nominee.objects.filter(
+                user=self.request.user, nominations__in=nominations_received_responded
+            )
+            .distinct()
+            .select_related("election")
+        )
+
+        context["nomination_drafts"] = (
+            Nomination.objects.filter(nominator=self.request.user, draft=True)
+            .select_related("nominee__election", "nominee__user")
+            .prefetch_related("nominee__user__socialaccount_set")
+        )
+
+        # Get elections where user can nominate (nominations open + was eligible at deadline)
+        open_nomination_elections = []
+        all_elections = Election.objects.filter(nominations_close__gte=timezone.now()).order_by(
+            "nominations_close"
+        )
+
+        for election in all_elections:
+            if election.is_nominations_open():
+                eligibility = self.request.user.profile.eligible_as_of(
+                    election.membership_eligibility_deadline
+                )
+                if eligibility["eligible"]:
+                    open_nomination_elections.append(election)
+
+        context["open_nomination_elections"] = open_nomination_elections
+
         return context
 
 
