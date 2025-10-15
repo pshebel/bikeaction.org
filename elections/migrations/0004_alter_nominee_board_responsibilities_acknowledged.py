@@ -15,7 +15,11 @@ class Migration(migrations.Migration):
             name="board_responsibilities_acknowledged",
             field=models.BooleanField(
                 default=False,
-                help_text="I have read the <a href='https://docs.google.com/document/d/1ptPY_IUtLQR6gI_yN76YwRmKGN9SsWXwol66HLl5iS0/edit?tab=t.0' target='_blank'>PBA Board responsibilities and expectations</a>",
+                help_text=(
+                    "I have read the <a href='https://docs.google.com/document/d/"
+                    "1ptPY_IUtLQR6gI_yN76YwRmKGN9SsWXwol66HLl5iS0/edit?tab=t.0' "
+                    "target='_blank'>PBA Board responsibilities and expectations</a>"
+                ),
             ),
         ),
     ]
