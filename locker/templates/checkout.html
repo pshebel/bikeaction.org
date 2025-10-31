@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Checkout Items{% endblock %}
+
+{% block content %}
+<div class="form-header">
+  <h1>Checkout Items</h1>
+  <form method="post">
+    {{ formset.management_form }}
+    {% csrf_token %}
+    <div class="table-container">
+      <table>
+        <tr><th>Item</th><th>Available</th><th>Withdraw</th></tr>
+        {% for form in formset %}
+          <tr>
+            <td>{{ form.name.value }}</td>
+            <td>{{ form.available_quantity.value }}</td>
+            <td>{{ form.quantity }}</td>
+            {{ form.item_id }}
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+      <label for="id_expected_return">Expected Return:</label>
+      {{ checkout_form.expected_return }}
+      <label for="id_expected_return">Note:</label>
+      {{ checkout_form.note }}
+    <button type="submit" class="submit-button">Submit</button>
+    <a href="{% url 'item_list' %}" class="secondary-button">Cancel</a>
+  </form>
+</div> 
+
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Return Items{% endblock %}
+
+{% block content %}
+
+{% if active_loans %}
+    <div class="form-header">
+        <h1>Return Items</h1>
+        <form method="post">
+            {% csrf_token %}
+            <ul class="button-checkbox-list">
+            {% for loan in active_loans %}
+            <li>
+                <div class="button-checkbox">
+                    <input type="checkbox" id="loan_{{ loan.id }}" name="loans" value="{{ loan.id }}">
+                    <label for="loan_{{ loan.id }}">{{ loan.item.name }}: {{ loan.quantity }}</label>
+                </div>
+            </li>
+            {% endfor %}
+            </ul>
+            <div>
+                <label for="note-field">Return Notes:</label>
+                {{ form.return_note }}
+            </div>
+
+            <button type="submit" class="submit-button">Submit</button>
+            <a href="{% url 'item_list' %}" class="secondary-button">Cancel</a>
+        </form>
+    </div>
+{% else %}
+<h1>Return Items</h1>
+    <p>You don't have any items to return.</p>
+    <a href="{% url 'item_list' %}" class="secondary-button">Browse Items</a>
+{% endif %}
+{% endblock %}

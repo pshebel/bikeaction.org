@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Available Items{% endblock %}
+
+{% block content %}
+
+
+{% if items %}
+    <div class="table-container">
+        <h1>Available Items</h1>
+        <table>
+            <tr><th>Item</th><th>Available Quantity</th><th>Total Quantity</th></tr>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.name }}</td>
+                <td>{{ item.available_quantity }}</td>
+                <td>{{ item.total_quantity }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% else %}
+    <h1>Available Items</h1>
+    <p>No items available at the moment.</p>
+{% endif %}
+
+
+{% if loaned_items %}
+    <div class="table-container">
+        <h1>Loaned Items</h1>
+        <table>
+            <tr><th>Item</th><th>Quantity</th><th>Borrower</th><th>Expected Return</th></tr>
+            {% for loan in loaned_items %}
+            <tr>
+                <td>{{ loan.item.name }}</td>
+                <td>{{ loan.quantity }}</td>
+                <td>{{ loan.user.username }} </td>
+                <td>{{ loan.expected_return }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% else %}
+    <h1>Loaned Items</h1>
+    <p>No items checked out at the moment.</p>
+{% endif %}
+
+{% endblock %}
