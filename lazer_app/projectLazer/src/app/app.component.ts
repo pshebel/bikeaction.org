@@ -1,6 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { Storage } from '@ionic/storage-angular';
 import { Platform } from '@ionic/angular'; // Import Platform
+import { Router } from '@angular/router';
+
+import { Preferences } from '@capacitor/preferences';
 
 import { OnlineStatusService } from './services/online.service';
 import { UpdateService } from './services/update.service';
@@ -47,6 +50,11 @@ export class AppComponent implements OnInit {
     this.accountService.checkLoggedIn();
     if (this.platform.is('hybrid')) {
       this.platform.resume.subscribe(() => {
+        Preferences.get({ key: 'openToCapture' }).then((value) => {
+          if (value.value === 'true') {
+            this.router.navigate(['/home']);
+          }
+        });
         this.accountService.checkLoggedIn();
         this.updateService.checkForUpdateNow();
       });
@@ -54,6 +62,11 @@ export class AppComponent implements OnInit {
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
         } else {
+          Preferences.get({ key: 'openToCapture' }).then((value) => {
+            if (value.value === 'true') {
+              this.router.navigate(['/home']);
+            }
+          });
           this.accountService.checkLoggedIn();
           this.updateService.checkForUpdateNow();
         }
@@ -64,10 +77,11 @@ export class AppComponent implements OnInit {
   constructor(
     private platform: Platform,
     private storage: Storage,
+    private router: Router,
     public onlineStatus: OnlineStatusService,
     public updateService: UpdateService,
     public versionService: VersionService,
-    public accountService: AccountService
+    public accountService: AccountService,
   ) {
     this.storage.create();
     document.addEventListener('touchstart', this.handleTouchStart, {

@@ -4,10 +4,11 @@ import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { LoadingController, ToastController } from '@ionic/angular';
 import { Platform } from '@ionic/angular'; // Import Platform
+import { Storage } from '@ionic/storage-angular';
 
 import { Device, DeviceInfo } from '@capacitor/device';
 import { Geolocation, Position } from '@capacitor/geolocation';
-import { Storage } from '@ionic/storage-angular';
+import { Preferences } from '@capacitor/preferences';
 
 import { fromURL, blobToURL } from 'image-resize-compress';
 
@@ -15,6 +16,7 @@ import { OnlineStatusService } from '../services/online.service';
 import { PhotoService } from '../services/photo.service';
 import { UpdateService } from '../services/update.service';
 import { ViolationService } from '../services/violation.service';
+import { AccountService } from '../services/account.service';
 
 @Component({
   selector: 'app-home',
@@ -28,10 +30,14 @@ export class HomePage implements OnInit {
   geoPerms: boolean | null = null;
   geoWatchId: string | null = null;
 
+  openToCapture: boolean = true;
+
   violationId: number | null = null;
   violationImage: string | undefined | null = null;
   violationPosition: Position | null = null;
   violationTime: Date | null = null;
+
+  submittedViolationsCount: number = 0;
 
   constructor(
     private loadingCtrl: LoadingController,
@@ -42,8 +48,16 @@ export class HomePage implements OnInit {
     private photos: PhotoService,
     private storage: Storage,
     private violations: ViolationService,
-    public platform: Platform
+    public platform: Platform,
+    public accountService: AccountService,
   ) {}
+
+  async toggleOpenToCapture() {
+    await Preferences.set({
+      key: 'openToCapture',
+      value: this.openToCapture.toString(),
+    });
+  }
 
   async getCurrentPosition() {
     if (this.geoWatchId !== null) {
@@ -59,7 +73,7 @@ export class HomePage implements OnInit {
             Geolocation.clearWatch({ id: this.geoWatchId });
           }
         }
-      }
+      },
     );
     //this.violationPosition = {
     //  timestamp: 123,
@@ -94,10 +108,10 @@ export class HomePage implements OnInit {
         blobToURL(thumbnail).then((thumbnailUrl) => {
           const savedThumbnail = this.photos.savePictureFromBase64(
             thumbnailUrl as string,
-            `thumb-${savedImage.filepath}`
+            `thumb-${savedImage.filepath}`,
           );
         });
-      }
+      },
     );
     this.violationImage = savedImage.webviewPath;
     this.violationTime = new Date();
@@ -151,7 +165,7 @@ export class HomePage implements OnInit {
                       .get('violation-' + dis.violationId)
                       .then((data: any) => {
                         data.position = JSON.parse(
-                          JSON.stringify(dis.violationPosition)
+                          JSON.stringify(dis.violationPosition),
                         );
                         dis.storage
                           .set('violation-' + dis.violationId, data)
@@ -222,9 +236,23 @@ export class HomePage implements OnInit {
   }
 
   ngOnInit(): void {
+    Preferences.get({ key: 'openToCapture' }).then((value) => {
+      if (value.value === null) {
+        this.openToCapture = false;
+      } else {
+        this.openToCapture = JSON.parse(value.value);
+      }
+    });
     Device.getInfo().then((deviceInfo) => {
       this.deviceInfo = deviceInfo;
       this.checkPermission();
+    });
+
+    // Count submitted violations
+    this.violations.history().then((history) => {
+      this.submittedViolationsCount = history.filter(
+        (violation) => violation.submitted === true,
+      ).length;
     });
   }
 }

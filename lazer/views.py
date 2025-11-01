@@ -6,7 +6,7 @@ import secrets
 from functools import wraps
 from importlib import import_module
 
-from anyio import TemporaryDirectory
+import pytz
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
@@ -16,15 +16,15 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.utils import timezone
+from django.views.decorators.cache import cache_page
 from django.views.decorators.csrf import csrf_exempt
 
+from campaigns.admin import randomize_lat_long
 from facets.utils import reverse_geocode_point
 from lazer.forms import ReportForm, SubmissionForm
 from lazer.integrations.platerecognizer import read_plate
-from lazer.integrations.submit_form import (
-    MobilityAccessViolation,
-    submit_form_with_playwright,
-)
+from lazer.integrations.submit_form import MobilityAccessViolation
 from lazer.models import ViolationReport, ViolationSubmission
 
 SessionStore = import_module(settings.SESSION_ENGINE).SessionStore
@@ -150,7 +150,6 @@ async def report_api(request):
     if request.method == "POST":
         form = ReportForm(request.POST)
         if form.is_valid():
-            image, _ = get_image_from_data_url(form.cleaned_data["image"])
             submission = await ViolationSubmission.objects.filter(
                 submission_id=form.cleaned_data["submission_id"]
             ).afirst()
@@ -177,14 +176,23 @@ async def report_api(request):
                 _zip_code=form.cleaned_data["zip_code"],
             )
 
-            async with TemporaryDirectory() as temp_dir:
-                violation = await submit_form_with_playwright(
-                    submission=submission,
-                    violation=mobility_access_violation,
-                    photo=image,
-                    screenshot_dir=temp_dir,
-                )
-                await violation.asave()
+            violation_report = ViolationReport(
+                submission=submission,
+                date_observed=mobility_access_violation.date_observed,
+                time_observed=mobility_access_violation.time_observed,
+                make=mobility_access_violation.make,
+                model=mobility_access_violation.model,
+                body_style=mobility_access_violation.body_style,
+                vehicle_color=mobility_access_violation.vehicle_color,
+                violation_observed=mobility_access_violation.violation_observed,
+                occurrence_frequency=mobility_access_violation.occurrence_frequency,
+                block_number=mobility_access_violation.block_number,
+                street_name=mobility_access_violation.street_name,
+                zip_code=mobility_access_violation.zip_code,
+                additional_information=mobility_access_violation.additional_information,
+            )
+
+            await violation_report.asave()
 
             return JsonResponse(
                 {
@@ -196,17 +204,61 @@ async def report_api(request):
             return JsonResponse({"submitted": False}, status=400)
 
 
-def map(request):
+@cache_page(30)
+def map_data(request):
+    violation_filter = request.GET.get("violation", None)
+    date_gte = request.GET.get("date_gte", None)
+    date_lte = request.GET.get("date_lte", None)
+    date = request.GET.get("date", None)
+
     pins = []
-    for report in ViolationReport.objects.select_related("submission").all():
-        lat, lng = (report.submission.location.y, report.submission.location.x)
+    queryset = ViolationReport.objects.filter(submitted__isnull=False).select_related("submission")
+    if violation_filter:
+        queryset = queryset.filter(violation_observed__startswith=violation_filter).filter(
+            submission__captured_at__lt=timezone.now() - datetime.timedelta(minutes=15)
+        )
+
+    if date:
+        queryset = queryset.filter(
+            submission__captured_at__date=datetime.datetime.strptime(date, "%Y-%m-%d")
+            .astimezone(pytz.timezone("America/New_York"))
+            .date()
+        )
+    else:
+        if date_gte:
+            queryset = queryset.filter(
+                submission__captured_at__gte=datetime.datetime.strptime(date_gte, "%Y-%m-%d")
+                .astimezone(pytz.timezone("America/New_York"))
+                .date()
+            )
+        if date_lte:
+            queryset = queryset.filter(
+                submission__captured_at__lte=datetime.datetime.strptime(date_lte, "%Y-%m-%d")
+                .astimezone(pytz.timezone("America/New_York"))
+                .date()
+            )
+
+    # Count unique users who submitted violations
+    unique_users = set()
+    for report in queryset.only("submission__location", "submission__created_by").all():
+        if report.submission.created_by_id:
+            unique_users.add(report.submission.created_by_id)
+        lat, lng = randomize_lat_long(
+            report.id, *(report.submission.location.y, report.submission.location.x)
+        )
         pins.append([lat, lng, 1])
-    return render(request, "heatmap.html", {"pins_json": json.dumps(pins)})
+
+    return JsonResponse({"pins": pins, "unique_users_count": len(unique_users)}, safe=False)
+
+
+def map(request):
+    return render(request, "heatmap.html")
 
 
 def list(request):
     queryset = (
-        ViolationReport.objects.select_related("submission")
+        ViolationReport.objects.filter(submitted__isnull=False)
+        .select_related("submission")
         .order_by("-submission__captured_at")
         .all()
     )
@@ -251,6 +303,7 @@ def login_api(request):
                 "first_name": request.user.first_name,
                 "session_key": session_key,
                 "expiry_date": expiry_date,
+                "donor": request.user.profile.donor(),
             },
             status=200,
         )
@@ -264,6 +317,7 @@ def check_login(request):
             "success": "ok",
             "username": request.user.email,
             "first_name": request.user.first_name,
+            "donor": request.user.profile.donor(),
         },
         status=200,
     )

@@ -1,10 +1,16 @@
 FROM node:22-bookworm AS build-lazer
 
-WORKDIR /code/lazer_app/projectLazer/
-COPY ./ /code/
+ARG GIT_REV
+ENV GIT_REV=${GIT_REV}
 
+WORKDIR /code/
+
+COPY ./lazer_app/projectLazer/package.json /code/
+COPY ./lazer_app/projectLazer/package-lock.json /code/
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install
+
+COPY ./lazer_app/projectLazer/ /code/
 
 RUN npx ionic build --prod
 
@@ -38,7 +44,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY .ssh /root/.ssh
 COPY . /code/
 
-COPY --from=build-lazer /code/lazer_app/projectLazer/www /code/static/lazer
+COPY --from=build-lazer /code/www /code/static/lazer
 
 RUN \
     DJANGO_SECRET_KEY=deadbeefcafe \

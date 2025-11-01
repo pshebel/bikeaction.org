@@ -40,6 +40,7 @@ psycopg2-binary
 pyap2
 pygit2
 pynliner
+redis-lock-py
 sentry-sdk[django]
 shapely
 wagtail

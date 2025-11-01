@@ -1,4 +1,4 @@
-{% load django_htmx sitetree static i18n %}
+{% load django_htmx sitetree static i18n wagtailimages_tags %}
 {% get_current_language as LANGUAGE_CODE %}
 <!DOCTYPE html>
 <html lang="en">
@@ -22,13 +22,13 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="{% block og_title %}{% if page.seo_title %}{{ page.seo_title }}{% else %}{% if page.title %}{{ page.title }}{% else %}{% translate "Philly Bike Action!" %}{% endif %}{% endif %}{% endblock %}">
     <meta property="og:description" content="{% block og_description %}{% if page.search_description %}{{ page.search_description }}{% else %}Join the Action!{% endif %}{% endblock %}">
-    <meta property="og:image" content="{% static 'images/og.png' %}">
+    <meta property="og:image" content="{% block og_image %}{% if page.og_image %}{% image page.og_image original as tmp_photo %}{{ tmp_photo.full_url }}{% else %}{% static 'images/og.png' %}{% endif %}{% endblock %}">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta property="twitter:domain" content="{{ request.http.host }}">
     <meta name="twitter:title" content="{% block twitter_title %}{% if page.seo_title %}{{ page.seo_title }}{% else %}{% if page.title %}{{ page.title }}{% else %}{% translate "Philly Bike Action!" %}{% endif %}{% endif %}{% endblock %}">
     <meta name="twitter:description" content="{% block twitter_description %}{% if page.search_description %}{{ page.search_description }}{% else %}Join the Action!{% endif %}{% endblock %}">
-    <meta name="twitter:image" content="{% static 'images/og.png' %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{% if page.og_image %}{% image page.og_image original as tmp_photo %}{{ tmp_photo.full_url }}{% else %}{% static 'images/og.png' %}{% endif %}{% endblock %}">
     {% endblock %}
 
     <script defer data-domain="bikeaction.org" src="https://analytics.bikeaction.org/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"></script>
@@ -47,6 +47,7 @@
 
     {% block extra_js %}
     {% endblock %}
+
   </head>
   <body>
     <div class="wrapper">

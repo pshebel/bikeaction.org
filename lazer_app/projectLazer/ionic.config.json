@@ -6,6 +6,6 @@
   },
   "type": "angular",
   "hooks": {
-    "ionic:build:before": "./update-version.js"
+    "ionic:build:before": "./scripts/update-version.js"
   }
 }

@@ -13,7 +13,7 @@ import { Browser } from '@capacitor/browser';
 import { Storage } from '@ionic/storage-angular';
 import { IonModal } from '@ionic/angular';
 
-import { parseAddress } from 'vladdress';
+import { AddressParser } from '@sroussey/parse-address';
 import { usaStates } from 'typed-usa-states/dist/states';
 import { fromURL, blobToURL } from 'image-resize-compress';
 
@@ -114,7 +114,7 @@ export class ConfirmViolationDetailsModalComponent implements OnInit {
     private storage: Storage,
     public onlineStatus: OnlineStatusService,
     private accountService: AccountService,
-    private platform: Platform
+    private platform: Platform,
   ) {}
 
   async presentReallySubmit() {
@@ -127,6 +127,10 @@ export class ConfirmViolationDetailsModalComponent implements OnInit {
           text: 'Cancel',
           role: 'cancel',
           handler: () => {
+            // Fire Plausible event for cancel
+            if (typeof (window as any).plausible !== 'undefined') {
+              (window as any).plausible('Confirm Submit - Cancel');
+            }
             this.cancel();
           },
         },
@@ -134,12 +138,20 @@ export class ConfirmViolationDetailsModalComponent implements OnInit {
           text: 'Submit it!',
           role: 'confirm',
           handler: () => {
+            // Fire Plausible event for submit
+            if (typeof (window as any).plausible !== 'undefined') {
+              (window as any).plausible('Confirm Submit - Submit');
+            }
             this.submit();
           },
         },
       ],
     });
     await alert.present();
+  }
+
+  back() {
+    return this.modalCtrl.dismiss(null, 'back');
   }
 
   cancel() {
@@ -162,53 +174,47 @@ export class ConfirmViolationDetailsModalComponent implements OnInit {
       street_name: string,
       zip_code: string,
       additional_information: string,
-      img: string,
-      headers: any
+      headers: any,
     ): Promise<any> {
       return new Promise((resolve, reject) => {
-        fromURL(img, 0.3, 'auto', 'auto', 'jpeg').then((resizedBlob) => {
-          blobToURL(resizedBlob).then((imgUrl) => {
-            const formData = new FormData();
-            let uuid = submission_id ? submission_id : crypto.randomUUID();
+        const formData = new FormData();
+        let uuid = submission_id ? submission_id : crypto.randomUUID();
 
-            formData.append('submission_id', uuid);
-            formData.append('date_observed', date_observed);
-            formData.append('time_observed', time_observed);
-            formData.append('make', make);
-            formData.append('model', model);
-            formData.append('body_style', body_style);
-            formData.append('vehicle_color', vehicle_color);
-            formData.append('violation_observed', violation_observed);
-            formData.append('occurrence_frequency', occurrence_frequency);
-            formData.append('block_number', block_number);
-            formData.append('street_name', street_name);
-            formData.append('zip_code', zip_code);
-            formData.append('additional_information', additional_information);
-            formData.append('image', imgUrl as string);
+        formData.append('submission_id', uuid);
+        formData.append('date_observed', date_observed);
+        formData.append('time_observed', time_observed);
+        formData.append('make', make);
+        formData.append('model', model);
+        formData.append('body_style', body_style);
+        formData.append('vehicle_color', vehicle_color);
+        formData.append('violation_observed', violation_observed);
+        formData.append('occurrence_frequency', occurrence_frequency);
+        formData.append('block_number', block_number);
+        formData.append('street_name', street_name);
+        formData.append('zip_code', zip_code);
+        formData.append('additional_information', additional_information);
 
-            try {
-              fetch(submitUrl, {
-                method: 'POST',
-                body: formData,
-                headers: headers,
-              }).then((response) => {
-                if (!response.ok) {
-                  if (response.status === 400) {
-                    response.json().then((json) => {
-                      reject(json.error);
-                    });
-                  }
-                  throw new Error(`Response status: ${response.status}`);
-                }
+        try {
+          fetch(submitUrl, {
+            method: 'POST',
+            body: formData,
+            headers: headers,
+          }).then((response) => {
+            if (!response.ok) {
+              if (response.status === 400) {
                 response.json().then((json) => {
-                  resolve(json);
+                  reject(json.error);
                 });
-              });
-            } catch (error: any) {
-              reject('error reporting, try again?');
+              }
+              throw new Error(`Response status: ${response.status}`);
             }
+            response.json().then((json) => {
+              resolve(json);
+            });
           });
-        });
+        } catch (error: any) {
+          reject('error reporting, try again?');
+        }
       });
     }
 
@@ -219,61 +225,58 @@ export class ConfirmViolationDetailsModalComponent implements OnInit {
       })
       .then((loader) => {
         loader.present();
-        this.photos.fetchPicture(this.violation.image!).then((photo) => {
-          const violationTime = new Date(this.violation.time!);
-          let additionalInfo = 'none at this time';
-          if (this.plateNumber || this.plateState) {
-            additionalInfo = `Plate: ${this.plateState!} ${this.plateNumber}`;
-          }
+        const violationTime = new Date(this.violation.time!);
+        let additionalInfo = 'none at this time';
+        if (this.plateNumber || this.plateState) {
+          additionalInfo = `Plate: ${this.plateState!} ${this.plateNumber}`;
+        }
 
-          submitData(
-            this.violation.submissionId,
-            violationTime.toLocaleDateString('en-US', {
-              month: '2-digit',
-              day: '2-digit',
-              year: 'numeric',
-            }),
-            violationTime.toLocaleTimeString('en-US'),
-            this.make,
-            this.model,
-            this.bodyStyle,
-            this.vehicleColor,
-            this.violation.violationType,
-            this.frequency,
-            this.blockNumber,
-            this.streetName,
-            this.zipCode,
-            additionalInfo,
-            photo.webviewPath,
-            this.accountService.headers()
-          )
-            .then((data: any) => {
-              this.violation.submitted = true;
-              this.storage
-                .set('violation-' + this.violation.id, this.violation)
-                .then((data) => {
-                  setTimeout(async () => {
-                    this.success();
-                    this.cancel();
-                    loader.dismiss();
-                    this.router.navigate(['home']);
-                  }, 100);
-                });
-            })
-            .catch((err: any) => {
-              console.log(err);
-              setTimeout(async () => {
-                const toast = await this.toastController.create({
-                  message: `Error: ${err}`,
-                  duration: 2000,
-                  position: 'top',
-                  icon: 'alert-circle-outline',
-                });
-                await toast.present();
-                loader.dismiss();
-              }, 100);
-            });
-        });
+        submitData(
+          this.violation.submissionId,
+          violationTime.toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+          }),
+          violationTime.toLocaleTimeString('en-US'),
+          this.make,
+          this.model,
+          this.bodyStyle,
+          this.vehicleColor,
+          this.violation.violationType,
+          this.frequency,
+          this.blockNumber,
+          this.streetName,
+          this.zipCode,
+          additionalInfo,
+          this.accountService.headers(),
+        )
+          .then((data: any) => {
+            this.violation.submitted = true;
+            this.storage
+              .set('violation-' + this.violation.id, this.violation)
+              .then((data) => {
+                setTimeout(async () => {
+                  this.success();
+                  this.cancel();
+                  loader.dismiss();
+                  this.router.navigate(['home']);
+                }, 100);
+              });
+          })
+          .catch((err: any) => {
+            console.log(err);
+            setTimeout(async () => {
+              const toast = await this.toastController.create({
+                message: `Error: ${err}`,
+                duration: 2000,
+                position: 'top',
+                icon: 'alert-circle-outline',
+              });
+              await toast.present();
+              loader.dismiss();
+            }, 100);
+          });
       });
   }
 
@@ -328,8 +331,8 @@ export class ConfirmViolationDetailsModalComponent implements OnInit {
   getStates(): Map<string, string> {
     return new Map(
       usaStates.map(
-        (obj) => [obj.abbreviation as string, obj.name as string] as const
-      )
+        (obj) => [obj.abbreviation as string, obj.name as string] as const,
+      ),
     );
   }
 
@@ -337,18 +340,20 @@ export class ConfirmViolationDetailsModalComponent implements OnInit {
     if (this.platform.is('hybrid')) {
       this.rootUrl = 'https://bikeaction.org';
     }
-    const parsedAddress = parseAddress(this.violation.address);
-    this.blockNumber = parsedAddress.streetNumber as string;
-    this.streetName = best_match(
-      'Street Name',
-      `${parsedAddress.streetName} ${parsedAddress.streetSuffix}`
-    );
-    this.zipCode = best_match('Zip Code', parsedAddress.zipCode as string);
+    const addressParser = new AddressParser();
+    const parsedAddress = addressParser.parseLocation(this.violation.address);
+    this.blockNumber = parsedAddress.number as string;
+    const inputStreetName =
+      `${parsedAddress.prefix || ''} ${parsedAddress.street || ''} ${parsedAddress.type || ''}`
+        .trim()
+        .replace(/\s+/g, ' ');
+    this.streetName = best_match('Street Name', inputStreetName);
+    this.zipCode = best_match('Zip Code', parsedAddress.postal_code as string);
 
     if (this.violation.vehicle!.vehicle?.props?.make_model[0].make) {
       this.make = best_match(
         'Make',
-        this.violation.vehicle.vehicle.props.make_model[0].make
+        this.violation.vehicle.vehicle.props.make_model[0].make,
       );
     }
     if (this.violation.vehicle!.vehicle?.props?.make_model[0].model) {
@@ -357,13 +362,13 @@ export class ConfirmViolationDetailsModalComponent implements OnInit {
     if (this.violation.vehicle!.vehicle?.props?.color[0].value) {
       this.vehicleColor = best_match(
         'Vehicle Color',
-        this.violation.vehicle.vehicle.props.color[0].value
+        this.violation.vehicle.vehicle.props.color[0].value,
       );
     }
     if (this.violation.vehicle!.vehicle?.type) {
       this.bodyStyle = best_match(
         'Body Style',
-        this.violation.vehicle.vehicle.type
+        this.violation.vehicle.vehicle.type,
       );
     }
     if (this.violation.vehicle!.plate) {

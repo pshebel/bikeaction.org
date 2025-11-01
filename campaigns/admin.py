@@ -70,8 +70,8 @@ def geocode(modeladmin, request, queryset):
             geocode_signature.delay(obj.id)
 
 
-def randomize_lat_long(petition_id, lat, long):
-    hash = hashlib.sha256(f"{petition_id}-{lat}-{long}".encode())
+def randomize_lat_long(salt, lat, long):
+    hash = hashlib.sha256(f"{salt}-{lat}-{long}".encode())
     smear_int = int.from_bytes(hash.digest(), "big")
     x_smear = (((smear_int % 2179) / 2179) - 0.5) * 0.000287
     y_smear = (((smear_int % 2803) / 2803) - 0.5) * 0.000358

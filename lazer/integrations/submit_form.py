@@ -1,3 +1,4 @@
+import logging
 import os
 import urllib
 from dataclasses import dataclass, field
@@ -9,10 +10,11 @@ import pyap
 import pytz
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.db.models.fields.files import ImageFieldFile
 from django.utils import timezone
 from playwright.async_api import FilePayload
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, expect
 from playwright_stealth import stealth_async
 
 from lazer.models import ViolationReport, ViolationSubmission
@@ -279,12 +281,12 @@ class MobilityAccessViolation:
 async def submit_form_with_playwright(
     submission: ViolationSubmission,
     violation: MobilityAccessViolation,
-    photo: str | ContentFile,
+    photo: str | ImageFieldFile | ContentFile,
     send_copy_to_email: str | None = None,
     tracing: bool = False,
     screenshot_dir: str | None = None,
     violation_report: ViolationReport | None = None,
-) -> None:
+) -> ViolationReport:
     """Method to submit a violation to the PPA's Smartsheet using Playwright.
 
     Args:
@@ -328,7 +330,7 @@ async def submit_form_with_playwright(
 
         # Construct the URL with query parameters
         params = {
-            "Date Observed": violation.date_observed,
+            # "Date Observed": violation.date_observed,
             "Time Observed": violation.time_observed,
             "Make": violation.make,
             "Model": violation.model,
@@ -351,13 +353,16 @@ async def submit_form_with_playwright(
         # wait for the form to load
         await page.wait_for_load_state("networkidle")
 
+        # Fill in the date
+        await page.get_by_role("textbox", name="mm/dd/yyyy").fill(violation.date_observed)
+
         # click the file chooser
         async with page.expect_file_chooser() as fc_info:
             await page.get_by_text("browse").click()
         file_chooser = await fc_info.value
         if isinstance(photo, str):
             await file_chooser.set_files(photo)
-        elif isinstance(photo, ContentFile):
+        elif isinstance(photo, ContentFile) or isinstance(photo, ImageFieldFile):
             upload = FilePayload(
                 name=getattr(photo, "name", "violation_photo.jpg"),
                 mimeType="image/jpeg",
@@ -385,13 +390,14 @@ async def submit_form_with_playwright(
                     violation_report.screenshot_before_submit.save(
                         "screenshot-before-submit.png", f, save=False
                     )
+                    await violation_report.asave()
 
             if not settings.DEBUG:
                 async with page.expect_request(
                     lambda request: request.url == SUBMIT_SMARTSHEET_URL
                     and request.method.lower() == "post"
                 ) as _:
-                    await page.click('button:text("Submit")')
+                    await page.get_by_role("button", name="Submit").click()
 
             if screenshot_dir:
                 await page.screenshot(
@@ -401,18 +407,17 @@ async def submit_form_with_playwright(
                     violation_report.screenshot_after_submit.save(
                         "screenshot-after-submit.png", f, save=False
                     )
+                    await violation_report.asave()
 
             # make sure there is a POST to the form URL and it returned 200
             # also, the submission page should have an h1 element with specific
             await page.wait_for_load_state("networkidle")
             if not settings.DEBUG:
                 # validate the submission page
-                success_text = page.get_by_role(
-                    "heading",
-                    name="Filling out the mobility access violation reporting form "
-                    "may not result in immediate enforcement action",
-                )
-                await success_text.wait_for(state="visible", timeout=10000)
+                await expect(
+                    page.locator('div[data-client-id="submission-confirmation-container"]')
+                ).to_be_visible(timeout=10000)
+
             if screenshot_dir:
                 await page.screenshot(
                     path=f"{screenshot_dir}/screenshot-success.png", full_page=True
@@ -421,15 +426,18 @@ async def submit_form_with_playwright(
                     violation_report.screenshot_success.save(
                         "screenshot-success.png", f, save=False
                     )
+                    await violation_report.asave()
             violation_report.submitted = timezone.now()
 
         except PlaywrightTimeoutError:
+            logging.error("Playwright timed out.", exc_info=True)
             if screenshot_dir:
                 await page.screenshot(
                     path=f"{screenshot_dir}/screenshot-error.png", full_page=True
                 )
                 with open(f"{screenshot_dir}/screenshot-error.png", "rb") as f:
                     violation_report.screenshot_error.save("screenshot-error.png", f, save=False)
+                    await violation_report.asave()
             if tracing:
                 await context.tracing.stop(path=f"tracing_{tracing_debug_key}.zip")
             await context.close()
@@ -442,6 +450,7 @@ async def submit_form_with_playwright(
             await page.screenshot(path=f"{screenshot_dir}/screenshot-final.png", full_page=True)
             with open(f"{screenshot_dir}/screenshot-final.png", "rb") as f:
                 violation_report.screenshot_final.save("screenshot-final.png", f, save=False)
+                await violation_report.asave()
         await context.close()
         await browser.close()
         return violation_report

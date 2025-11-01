@@ -215,6 +215,15 @@ def create_one_time_donation_checkout_session(request):
             return_url=request.build_absolute_uri(
                 reverse("complete_one_time_donation_checkout_session")
             ),
+            custom_fields=[
+                {
+                    "key": "comment",
+                    "label": {"type": "custom", "custom": "Comment"},
+                    "optional": True,
+                    "type": "text",
+                    "text": {"maximum_length": 255},
+                }
+            ],
             customer=(
                 request.user.djstripe_customers.first().id
                 if request.user.is_authenticated and request.user.djstripe_customers.first()
@@ -244,11 +253,14 @@ def complete_one_time_donation_checkout_session(request):
     if session["status"] == "complete":
         _session = Session()._get_or_retrieve(session["id"], expand=["line_items"])
         _session.save()
+        _line_items = _session.line_items.get("data")
+        if _line_items is None:
+            _line_items = _session.line_items
         donation_products = DonationProduct.objects.filter(
-            stripe_product__id__in=[li["price"]["product"] for li in _session.line_items]
+            stripe_product__id__in=[li["price"]["product"] for li in _line_items]
         ).all()
         if donation_products:
-            for line_item in _session.line_items:
+            for line_item in _line_items:
                 donation_product = DonationProduct.objects.filter(
                     stripe_product__id=line_item["price"]["product"]
                 ).first()
@@ -257,6 +269,12 @@ def complete_one_time_donation_checkout_session(request):
                         donation_product=donation_product, amount=line_item["amount_total"] / 100
                     )
                     _d.save()
+        custom_fields = {d["key"]: d[d["type"]]["value"] for d in session["custom_fields"]}
+        if custom_fields.get("comment"):
+            _d = Donation(
+                amount=_line_items[0]["amount_total"] / 100, comment=custom_fields.get("comment")
+            )
+            _d.save()
         if redirect_to := request.session.pop("_redirect_after_donation", default=None):
             messages.add_message(request, messages.INFO, "Thank you for your donation!")
             return redirect(redirect_to)

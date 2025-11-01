@@ -28,5 +28,3 @@ class ReportForm(forms.Form):
     zip_code = forms.CharField()
 
     additional_information = forms.CharField()
-
-    image = forms.CharField()
