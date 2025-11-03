@@ -1,5 +1,5 @@
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
 
 
 class ItemType(models.Model):
@@ -9,9 +9,10 @@ class ItemType(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
 class Item(models.Model):
-    type = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='loans')
-    
+    type = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name="loans")
+
     name = models.CharField(max_length=255)
     note = models.TextField(blank=True)
     total_quantity = models.PositiveIntegerField(default=1)
@@ -25,8 +26,8 @@ class Item(models.Model):
 
 
 class Loan(models.Model):
-    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='loans')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='loans')
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="loans")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="loans")
 
     quantity = models.PositiveIntegerField(default=1)
     active = models.BooleanField(default=True)
@@ -41,4 +42,4 @@ class Loan(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f'{self.user} {self.item}'
+        return f"{self.user} {self.item}"
