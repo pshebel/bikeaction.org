@@ -1,0 +1,22 @@
+Hello {{ first_name }},
+
+<i><small>You are receiving this email from <a href="https://bikeaction.org/">Philly Bike Action</a> because you have a PBA account and live near the project site.</small></i>
+
+Last call for the 12th Street Complete Street Petition\! **12th Street** is being repaved from Spring Garden to Vine Street this year. Tell the Streets Department you support a “Complete Street” design on 12th Street\!
+
+The proposed improvements would:
+
+* **Slow down traffic** on 12th Street, increasing safety for people walking, biking, and driving  
+* **Reduce crossing distances** for people walking and in wheelchairs  
+* **Make it safer for families** to access community amenities like the Rail Park  
+* **Provide a buffer** from noisy car traffic for people on sidewalks  
+* Serve as an important extension of the 12th Street **bike lane**  
+* **Decrease congestion** at the 12th and Callowhill Street intersections
+
+You can [sign the petition and view the proposed design](https://bikeaction.org/campaigns/safer-12th-st/) on the PBA website. The petition will close on November 8, so be sure to sign before then\!
+
+<div style="text-align: center;">
+<a href="https://bikeaction.org/campaigns/safer-12th-st/" class="submit-button">Sign The Petition</a>
+</div>
+
+**Philly Bike Action**
