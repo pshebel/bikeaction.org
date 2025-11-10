@@ -25,6 +25,60 @@
   </div>
 </div>
 
+<div style="text-align: center; margin: 1rem 0;">
+  <span id="toggleDistrictTurnout" style="color: #666; text-decoration: underline; cursor: pointer;">Show turnout by district</span>
+</div>
+
+<div class="form-container" id="districtTurnoutTable" style="display: none;">
+  <h2 style="margin: 0 0 1rem 0;">District Turnout Breakdown</h2>
+
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+            <th style="padding: 0.75rem; text-align: left; font-weight: bold;">District</th>
+            <th style="padding: 0.75rem; text-align: center; font-weight: bold;">Eligible Voters</th>
+            <th style="padding: 0.75rem; text-align: center; font-weight: bold;">Ballots Cast</th>
+            <th style="padding: 0.75rem; text-align: center; font-weight: bold;">Turnout Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for district in district_turnout %}
+          <tr style="border-bottom: 1px solid #dee2e6;">
+            <td style="padding: 0.75rem;">
+              {% if district.district_num %}
+                District {{ district.district_num }}
+              {% else %}
+                <i>No District</i>
+              {% endif %}
+            </td>
+            <td style="padding: 0.75rem; text-align: center;">{{ district.eligible_voters }}</td>
+            <td style="padding: 0.75rem; text-align: center;">{{ district.ballots_cast }}</td>
+            <td style="padding: 0.75rem; text-align: center;">
+              {% if district.turnout_rate is not None %}
+                {{ district.turnout_rate|floatformat:1 }}%
+              {% else %}
+                <span style="color: #999;">N/A</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+</div>
+
+<script>
+  document.getElementById('toggleDistrictTurnout').addEventListener('click', function() {
+    const table = document.getElementById('districtTurnoutTable');
+    const link = this;
+    const isHidden = table.style.display === 'none';
+
+    table.style.display = isHidden ? 'block' : 'none';
+    link.textContent = isHidden ? 'Hide turnout by district' : 'Show turnout by district';
+  });
+</script>
+
 <div class="form-container">
   <div style="margin-bottom: 1.5rem;">
     <h2 style="margin: 0;">Board Election Results</h2>

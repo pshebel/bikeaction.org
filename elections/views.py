@@ -741,6 +741,7 @@ def election_results(request, election_slug):
             "question_results": results["question_results"],
             "total_ballots": results["total_ballots"],
             "eligible_voters_count": results["eligible_voters_count"],
+            "district_turnout": results["district_turnout"],
         },
     )
 
@@ -915,6 +916,70 @@ def calculate_election_results(election):
     # Get eligible voters count
     eligible_voters_count = election.get_eligible_voters().count()
 
+    # Calculate district-level turnout statistics
+    # Count eligible voters by district
+    eligible_voters_by_district = Counter()
+    for profile in election.get_eligible_voters():
+        district = profile.district
+        if district:
+            import re
+
+            match = re.search(r"\d+", district.name)
+            if match:
+                district_num = int(match.group())
+                eligible_voters_by_district[district_num] += 1
+            else:
+                eligible_voters_by_district[None] += 1
+        else:
+            eligible_voters_by_district[None] += 1
+
+    # Count ballots cast by district
+    ballots_by_district = Counter()
+    for ballot in ballots:
+        voter_profile = ballot.voter.profile
+        voter_district = voter_profile.district
+        if voter_district:
+            import re
+
+            match = re.search(r"\d+", voter_district.name)
+            if match:
+                district_num = int(match.group())
+                ballots_by_district[district_num] += 1
+            else:
+                ballots_by_district[None] += 1
+        else:
+            ballots_by_district[None] += 1
+
+    # Build district turnout list (districts 1-10 plus "No District")
+    district_turnout = []
+    for district_num in range(1, 11):
+        eligible = eligible_voters_by_district.get(district_num, 0)
+        ballots_cast = ballots_by_district.get(district_num, 0)
+        turnout_rate = (ballots_cast / eligible * 100) if eligible > 0 else None
+        district_turnout.append(
+            {
+                "district_num": district_num,
+                "eligible_voters": eligible,
+                "ballots_cast": ballots_cast,
+                "turnout_rate": turnout_rate,
+            }
+        )
+
+    # Add "No District" row
+    eligible_no_district = eligible_voters_by_district.get(None, 0)
+    ballots_no_district = ballots_by_district.get(None, 0)
+    turnout_no_district = (
+        (ballots_no_district / eligible_no_district * 100) if eligible_no_district > 0 else None
+    )
+    district_turnout.append(
+        {
+            "district_num": None,
+            "eligible_voters": eligible_no_district,
+            "ballots_cast": ballots_no_district,
+            "turnout_rate": turnout_no_district,
+        }
+    )
+
     return {
         "district_seats": district_seats,
         "at_large_seats": at_large_seats,
@@ -922,4 +987,5 @@ def calculate_election_results(election):
         "question_results": question_results,
         "total_ballots": total_ballots,
         "eligible_voters_count": eligible_voters_count,
+        "district_turnout": district_turnout,
     }
