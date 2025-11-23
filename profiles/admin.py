@@ -1,5 +1,7 @@
 import csv
 import datetime
+from collections import defaultdict
+from io import BytesIO
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -11,6 +13,8 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 from djstripe.models import Subscription
 from email_log.models import Email
+from reportlab.lib.units import inch as rl_inch
+from reportlab.pdfgen import canvas
 
 from facets.models import District, RegisteredCommunityOrganization
 from membership.models import Membership
@@ -843,6 +847,143 @@ def make_fulfilled(modeladmin, request, queryset):
     queryset.update(fulfilled=True)
 
 
+@admin.action(description="Export Shipping Labels as PDF")
+def export_shipping_labels(modeladmin, request, queryset):
+    """
+    Export 4x6 shipping labels for selected shirt orders.
+    Groups orders by user/email and creates one label per recipient.
+    """
+    # Group orders by user/email
+    orders_by_user = defaultdict(list)
+    for order in queryset.select_related("user"):
+        # Use email as the key to group orders
+        key = (order.user.email, order.user.id)
+        orders_by_user[key].append(order)
+
+    # Create PDF
+    buffer = BytesIO()
+    # 4x6 inches label size
+    label_width = 4 * rl_inch
+    label_height = 6 * rl_inch
+
+    c = canvas.Canvas(buffer, pagesize=(label_width, label_height))
+
+    # Return address
+    return_address = [
+        "Philly Bike Action",
+        "c/o Ee Durbin",
+        "1239 S 8th Street",
+        "Philadelphia, PA 19147",
+    ]
+
+    # Process each unique user/recipient
+    for (email, user_id), orders in orders_by_user.items():
+        # Get shipping details from the first order (all should be the same for same user)
+        first_order = orders[0]
+
+        # Top 1/3 - Return address
+        y_position = label_height - 0.3 * rl_inch
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(0.25 * rl_inch, y_position, "FROM:")
+        c.setFont("Helvetica", 9)
+        for line in return_address:
+            y_position -= 0.15 * rl_inch
+            c.drawString(0.25 * rl_inch, y_position, line)
+
+        # Separator line after return address
+        y_position -= 0.2 * rl_inch
+        c.line(0.25 * rl_inch, y_position, label_width - 0.25 * rl_inch, y_position)
+
+        # Middle 1/3 - Shipping address
+        y_position -= 0.3 * rl_inch
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(0.25 * rl_inch, y_position, "TO:")
+        c.setFont("Helvetica-Bold", 11)
+
+        # Build shipping address lines
+        shipping_lines = []
+        if first_order.shipping_name():
+            shipping_lines.append(first_order.shipping_name())
+        if first_order.shipping_line1():
+            shipping_lines.append(first_order.shipping_line1())
+        if first_order.shipping_line2():
+            shipping_lines.append(first_order.shipping_line2())
+
+        # City, State ZIP line
+        city_state_zip = []
+        if first_order.shipping_city():
+            city_state_zip.append(first_order.shipping_city())
+        if first_order.shipping_state():
+            if city_state_zip:
+                city_state_zip.append(f"{first_order.shipping_state()}")
+            else:
+                city_state_zip.append(first_order.shipping_state())
+        if first_order.shipping_postal_code():
+            city_state_zip.append(first_order.shipping_postal_code())
+
+        if city_state_zip:
+            # Handle city, state separately for proper formatting
+            if first_order.shipping_city() and first_order.shipping_state():
+                shipping_lines.append(
+                    f"{first_order.shipping_city()}, {first_order.shipping_state()} "
+                    f"{first_order.shipping_postal_code() or ''}".strip()
+                )
+            else:
+                shipping_lines.append(" ".join(city_state_zip))
+
+        for line in shipping_lines:
+            y_position -= 0.18 * rl_inch
+            c.drawString(0.25 * rl_inch, y_position, line)
+
+        # Separator line after shipping address
+        y_position -= 0.25 * rl_inch
+        c.line(0.25 * rl_inch, y_position, label_width - 0.25 * rl_inch, y_position)
+
+        # Bottom 1/3 - Items list
+        y_position -= 0.3 * rl_inch
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(0.25 * rl_inch, y_position, "ITEMS:")
+        c.setFont("Helvetica", 8)
+
+        # List all items for this user
+        for order in orders:
+            y_position -= 0.15 * rl_inch
+
+            # Build item description
+            item_parts = []
+            if order.get_product_type_display():
+                item_parts.append(order.get_product_type_display())
+            if order.get_fit_display():
+                item_parts.append(order.get_fit_display())
+            if order.get_size_display():
+                item_parts.append(f"Size {order.get_size_display()}")
+            if order.get_print_color_display():
+                item_parts.append(f"{order.get_print_color_display()} print")
+
+            item_text = " - ".join(item_parts)
+
+            # Wrap text if too long
+            if len(item_text) > 50:
+                c.drawString(0.3 * rl_inch, y_position, "• " + item_text[:50])
+                y_position -= 0.12 * rl_inch
+                c.drawString(0.4 * rl_inch, y_position, item_text[50:])
+            else:
+                c.drawString(0.3 * rl_inch, y_position, "• " + item_text)
+
+        # Create new page for next label
+        c.showPage()
+
+    # Save PDF
+    c.save()
+
+    # Create HTTP response
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="shipping_labels.pdf"'
+
+    return response
+
+
 @admin.action(description="Export Orders as CSV")
 def csv_export(self, request, queryset):
 
@@ -914,7 +1055,7 @@ class ShirtOrderAdmin(ReadOnlyLeafletGeoAdminMixin, admin.ModelAdmin):
         "shipping_state",
         "shipping_postal_code",
     ]
-    actions = [csv_export, make_fulfilled]
+    actions = [csv_export, make_fulfilled, export_shipping_labels]
 
 
 admin.site.register(ShirtOrder, ShirtOrderAdmin)
