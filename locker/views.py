@@ -8,28 +8,19 @@ from django.utils import timezone
 from .forms import CheckoutForm, LoanFormSet, ReturnForm
 from .models import Item, Loan
 
+from django.contrib.auth.decorators import permission_required
+
 
 @login_required
+@permission_required("locker.view_item", raise_exception=True)
 def locker(request):
-    if not (
-        # organizer
-        request.user.is_staff
-    ):
-        messages.error(request, "You do not have permission to view the locker.")
-        return redirect("#")
 
     return render(request, "locker.html")
 
 
 @login_required
+@permission_required("locker.view_item", raise_exception=True)
 def item_list(request):
-    if not (
-        # organizer
-        request.user.is_staff
-    ):
-        messages.error(request, "You do not have permission to view the locker.")
-        return redirect("#")
-
     items = Item.objects.filter(available_quantity__gt=0)
     loaned_items = Loan.objects.filter(active=True)
 
@@ -37,14 +28,8 @@ def item_list(request):
 
 
 @login_required
+@permission_required("locker.view_item", raise_exception=True)
 def checkout_items(request):
-    if not (
-        # organizer
-        request.user.is_staff
-    ):
-        messages.error(request, "You do not have permission to view the locker.")
-        return redirect("#")
-
     items = Item.objects.filter(available_quantity__gt=0)
     if request.method == "POST":
         checkout_form = CheckoutForm(request.POST)
@@ -92,13 +77,8 @@ def checkout_items(request):
 
 
 @login_required
+@permission_required("locker.view_item", raise_exception=True)
 def return_items(request):
-    if not (
-        # organizer
-        request.user.is_staff
-    ):
-        messages.error(request, "You do not have permission to view the locker.")
-        return redirect("#")
 
     active_loans = Loan.objects.filter(
         user=request.user,
@@ -141,13 +121,8 @@ def return_items(request):
 
 
 @login_required
+@permission_required("locker.view_item", raise_exception=True)
 def my_loans(request):
-    if not (
-        # organizer
-        request.user.is_staff
-    ):
-        messages.error(request, "You do not have permission to view the locker.")
-        return redirect("#")
 
     loans = Loan.objects.filter(
         user=request.user,

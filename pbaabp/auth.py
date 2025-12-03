@@ -3,10 +3,11 @@ from django.contrib.auth.backends import BaseBackend
 
 from campaigns.models import Campaign
 from profiles.models import Profile
+from locker.models import Item, ItemType, Loan
 
 User = get_user_model()
 
-ORGANIZER_MODELS = [Campaign, User, Profile]
+ORGANIZER_MODELS = [Campaign, User, Profile, Item, ItemType, Loan]
 ORGANIZER_PERMS = [
     f"{model._meta.app_label}.view_{model._meta.model_name}" for model in ORGANIZER_MODELS
 ]
