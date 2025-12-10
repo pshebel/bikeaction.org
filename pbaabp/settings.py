@@ -463,6 +463,11 @@ PLATERECOGNIZER_API_KEY = env("PLATERECOGNIZER_API_KEY", default=None)
 NEW_LASER_VIOLATION_GUILD_ID = env("NEW_LASER_VIOLATION_GUILD_ID", default=None)
 NEW_LASER_VIOLATION_CHANNEL_ID = env("NEW_LASER_VIOLATION_CHANNEL_ID", default=None)
 
+# PPA Power Automate API
+PPA_API_DOMAIN = env("PPA_API_DOMAIN", default=None)
+PPA_API_WORKFLOW = env("PPA_API_WORKFLOW", default=None)
+PPA_API_SIG = env("PPA_API_SIG", default=None)
+
 # django-admin-csvexport
 # https://github.com/thomst/django-admin-csvexport/issues/3
 DATA_UPLOAD_MAX_NUMBER_FIELDS = None

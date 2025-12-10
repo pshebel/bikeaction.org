@@ -61,6 +61,7 @@ class ViolationReport(models.Model):
     screenshot_final = models.ImageField(null=True, blank=True, upload_to=report_image_upload_to)
 
     submitted = models.DateTimeField(null=True, blank=True)
+    service_id = models.CharField(null=True, blank=True)
 
     def is_submitted(self):
         return self.submitted is not None

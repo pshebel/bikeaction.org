@@ -34,8 +34,6 @@ geopy
 httpx
 markdown
 pillow
-playwright
-tf-playwright-stealth
 psycopg2-binary
 pyap2
 pygit2
