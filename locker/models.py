@@ -31,9 +31,9 @@ class Loan(models.Model):
 
     quantity = models.PositiveIntegerField(default=1)
     active = models.BooleanField(default=True)
-    expected_return = models.DateTimeField(null=True)
     borrowed_at = models.DateTimeField(auto_now_add=True)
-    returned_at = models.DateTimeField(null=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+    expected_return = models.DateField(null=True, blank=True)
 
     checkout_note = models.TextField(blank=True)
     return_note = models.TextField(blank=True)

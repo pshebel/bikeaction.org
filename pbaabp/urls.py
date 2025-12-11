@@ -39,7 +39,6 @@ urlpatterns = [
     path("donations/", include("membership.urls")),
     path("campaigns/", include("campaigns.urls")),
     path("elections/", include("elections.urls")),
-    path("locker/", include("locker.urls")),
     path("stripe/", include("djstripe.urls", namespace="djstripe")),
     path("sesame/login/", LoginView.as_view(), name="sesame_login"),
     path("email/login/", EmailLoginView.as_view(), name="email_login"),

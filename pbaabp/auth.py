@@ -2,8 +2,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import BaseBackend
 
 from campaigns.models import Campaign
-from profiles.models import Profile
 from locker.models import Item, ItemType, Loan
+from profiles.models import Profile
 
 User = get_user_model()
 
