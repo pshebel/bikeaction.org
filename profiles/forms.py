@@ -10,9 +10,36 @@ from pbaabp.forms import validate_is_checked
 from profiles.models import Profile
 
 
+class PronounsWidget(forms.TextInput):
+    """Text input with datalist for common pronoun suggestions"""
+
+    def __init__(self, attrs=None):
+        default_attrs = {'list': 'pronouns-list'}
+        if attrs:
+            default_attrs.update(attrs)
+        super().__init__(attrs=default_attrs)
+
+    def render(self, name, value, attrs=None, renderer=None):
+        text_input = super().render(name, value, attrs, renderer)
+        datalist = '''
+        <datalist id="pronouns-list">
+          <option value="she/her">
+          <option value="he/him">
+          <option value="they/them">
+          <option value="any pronouns">
+        </datalist>
+        '''
+        return mark_safe(text_input + datalist)
+
+
 class BaseProfileSignupForm(BaseSignupForm):
     first_name = forms.CharField(required=True, label=_("First Name"))
     last_name = forms.CharField(required=True, label=_("Last Name"))
+    pronouns = forms.CharField(
+        required=False,
+        label=_("Pronouns"),
+        widget=PronounsWidget(),
+    )
     street_address = forms.CharField(
         max_length=256,
         required=True,
@@ -44,6 +71,7 @@ class BaseProfileSignupForm(BaseSignupForm):
             street_address=self.cleaned_data["street_address"],
             zip_code=self.cleaned_data["zip_code"],
             newsletter_opt_in=self.cleaned_data["newsletter_opt_in"],
+            pronouns=self.cleaned_data["pronouns"],
         )
         profile.save()
         return user
@@ -77,6 +105,7 @@ class ProfileSignupForm(BaseProfileSignupForm):
     field_order = [
         "first_name",
         "last_name",
+        "pronouns",
         "street_address",
         "zip_code",
         "email",
@@ -96,6 +125,7 @@ class ProfileUpdateForm(forms.ModelForm):
         fields = [
             "first_name",
             "last_name",
+            "pronouns",
             "email",
             "street_address",
             "zip_code",
@@ -121,6 +151,11 @@ class ProfileUpdateForm(forms.ModelForm):
 
     first_name = forms.CharField(required=True, label=_("First Name"))
     last_name = forms.CharField(required=True, label=_("Last Name"))
+    pronouns = forms.CharField(
+        required=False,
+        label=_("Pronouns"),
+        widget=PronounsWidget(),
+    )
     email = forms.EmailField(
         disabled=True,
         required=True,
