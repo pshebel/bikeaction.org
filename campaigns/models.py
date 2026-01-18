@@ -9,7 +9,7 @@ from markdownfield.models import RenderedMarkdownField
 from markdownfield.validators import VALIDATOR_NULL
 from ordered_model.models import OrderedModel
 
-from campaigns.tasks import geocode_signature
+from campaigns.tasks import geocode_signature, send_post_sign_email
 from events.models import ScheduledEvent
 from facets.models import District, RegisteredCommunityOrganization
 from lib.slugify import unique_slugify
@@ -131,6 +131,24 @@ class Petition(models.Model):
 
     redirect_after = models.URLField(
         blank=True, null=True, help_text="page to redirect to after signing"
+    )
+
+    # Post-sign email to the signer
+    post_sign_email_enabled = models.BooleanField(
+        default=False,
+        help_text="Send an email to the signer after they sign the petition",
+    )
+    post_sign_email_subject = models.CharField(
+        max_length=988,
+        blank=True,
+        null=True,
+        help_text="Subject line for the post-sign email. Supports Django template syntax.",
+    )
+    post_sign_email_body = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Body of the post-sign email. Supports markdown and Django template syntax. "
+        "Available context: first_name, last_name, email, petition, campaign.",
     )
 
     campaign = models.ForeignKey(
@@ -295,6 +313,8 @@ class PetitionSignature(models.Model):
             )
         if not self.location:
             transaction.on_commit(lambda: geocode_signature.delay(self.id))
+        if self.petition.post_sign_email_enabled and self.email:
+            transaction.on_commit(lambda: send_post_sign_email.delay(self.id))
         super(PetitionSignature, self).save(*args, **kwargs)
 
     def __str__(self):
