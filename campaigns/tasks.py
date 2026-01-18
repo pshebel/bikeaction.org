@@ -1,8 +1,10 @@
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from django.contrib.gis.geos import Point
+from django.template import engines
 
 from facets.utils import geocode_address
+from pbaabp.email import send_email_message
 
 
 @shared_task
@@ -24,3 +26,45 @@ def geocode_signature(signature_id):
         else:
             print(f"No address found for {signature.postal_address_line_1} {signature.zip_code}")
             PetitionSignature.objects.filter(id=signature_id).update(location=None)
+
+
+@shared_task
+def send_post_sign_email(signature_id):
+    """Send a post-sign email to the petition signer."""
+    from campaigns.models import PetitionSignature
+
+    signature = PetitionSignature.objects.select_related("petition", "petition__campaign").get(
+        id=signature_id
+    )
+    petition = signature.petition
+
+    if not petition.post_sign_email_enabled:
+        return
+
+    if not petition.post_sign_email_subject or not petition.post_sign_email_body:
+        return
+
+    if not signature.email:
+        return
+
+    context = {
+        "first_name": signature.first_name,
+        "last_name": signature.last_name,
+        "email": signature.email,
+        "petition": petition,
+        "campaign": petition.campaign,
+    }
+
+    # Render the subject as a Django template
+    engine = engines["django"]
+    subject_template = engine.from_string(petition.post_sign_email_subject)
+    rendered_subject = subject_template.render(context)
+
+    send_email_message(
+        template_name="post_sign_email",
+        from_=None,
+        to=[signature.email],
+        context=context,
+        subject=rendered_subject,
+        message=petition.post_sign_email_body,
+    )
